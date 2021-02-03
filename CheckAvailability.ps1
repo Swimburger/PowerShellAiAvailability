@@ -1,6 +1,6 @@
 $MyInvocation.MyCommand.Path | Split-Path | Push-Location;
 
-# Update the path if you install a different  version of AI NuGet package
+# Update the path if you install a different version of AI NuGet package
 Add-Type -Path .\Dependencies\Microsoft.ApplicationInsights.2.16.0\lib\netstandard2.0\Microsoft.ApplicationInsights.dll;
 
 $InstrumentationKey = $Env:APPINSIGHTS_INSTRUMENTATIONKEY;
@@ -15,10 +15,11 @@ $TelemetryConfiguration = [Microsoft.ApplicationInsights.Extensibility.Telemetry
     $Channel
 );
 $TelemetryClient = [Microsoft.ApplicationInsights.TelemetryClient]::new($TelemetryConfiguration);
+
 $TestName = "AvailabilityTestFunction";
 $TestLocation = $Env:COMPUTERNAME; # you can use any string for this
-
 $OperationId = (New-Guid).ToString("N");
+
 $Availability = [Microsoft.ApplicationInsights.DataContracts.AvailabilityTelemetry]::new();
 $Availability.Id = $OperationId;
 $Availability.Name = $TestName;
@@ -26,7 +27,7 @@ $Availability.RunLocation = $TestLocation;
 $Availability.Success = $False;
 
 $Stopwatch =  [System.Diagnostics.Stopwatch]::New()
-$stopwatch.Start();
+$Stopwatch.Start();
 
 $OriginalErrorActionPreference = $ErrorActionPreference;
 Try
@@ -40,11 +41,12 @@ Try
 }
 Catch
 {
+    # Submit Exception details to Application Insights
     $Availability.Message = $_.Exception.Message;
     $ExceptionTelemetry = [Microsoft.ApplicationInsights.DataContracts.ExceptionTelemetry]::new($_.Exception);
     $ExceptionTelemetry.Context.Operation.Id = $OperationId;
-    $ExceptionTelemetry.Properties.Add("TestName", $TestName);
-    $ExceptionTelemetry.Properties.Add("TestLocation", $TestLocation);
+    $ExceptionTelemetry.Properties["TestName"] = $TestName;
+    $ExceptionTelemetry.Properties["TestLocation"] = $TestLocation;
     $TelemetryClient.TrackException($ExceptionTelemetry);
 }
 Finally
@@ -53,6 +55,7 @@ Finally
     $Availability.Duration = $Stopwatch.Elapsed;
     $Availability.Timestamp = [DateTimeOffset]::UtcNow;
     
+    # Submit Availability details to Application Insights
     $TelemetryClient.TrackAvailability($Availability);
     # call flush to ensure telemetry is sent
     $TelemetryClient.Flush();
